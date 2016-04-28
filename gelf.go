@@ -5,7 +5,6 @@ import (
 	"compress/zlib"
 	"crypto/rand"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"log"
 	"math"
@@ -14,16 +13,14 @@ import (
 )
 
 const (
-	defaultGraylogPort     = 12201
-	defaultGraylogHostname = "127.0.0.1"
+	defaultGraylogEndpoint = "127.0.0.1:12201"
 	defaultConnection      = "wan"
 	defaultMaxChunkSizeWan = 1420
 	defaultMaxChunkSizeLan = 8154
 )
 
 type Config struct {
-	GraylogPort     int
-	GraylogHostname string
+	GraylogEndpoint string
 	Connection      string
 	MaxChunkSizeWan int
 	MaxChunkSizeLan int
@@ -34,12 +31,8 @@ type Gelf struct {
 }
 
 func New(config Config) *Gelf {
-
-	if config.GraylogPort == 0 {
-		config.GraylogPort = defaultGraylogPort
-	}
-	if config.GraylogHostname == "" {
-		config.GraylogHostname = defaultGraylogHostname
+	if config.GraylogEndpoint == "" {
+		config.GraylogEndpoint = defaultGraylogEndpoint
 	}
 	if config.Connection == "" {
 		config.Connection = defaultConnection
@@ -59,14 +52,6 @@ func New(config Config) *Gelf {
 }
 
 func (g *Gelf) Log(message string) {
-	msgJson := g.ParseJson(message)
-
-	err := g.TestForForbiddenValues(msgJson)
-	if err != nil {
-		log.Printf("Uh oh! %s", err)
-		return
-	}
-
 	compressed := g.Compress([]byte(message))
 
 	chunksize := g.Config.MaxChunkSizeWan
@@ -139,26 +124,8 @@ func (g *Gelf) Compress(b []byte) bytes.Buffer {
 	return buf
 }
 
-func (g *Gelf) ParseJson(msg string) map[string]interface{} {
-	var i map[string]interface{}
-	c := []byte(msg)
-
-	json.Unmarshal(c, &i)
-
-	return i
-}
-
-func (g *Gelf) TestForForbiddenValues(gmap map[string]interface{}) error {
-	if _, err := gmap["_id"]; err {
-		return errors.New("Key _id is forbidden")
-	}
-
-	return nil
-}
-
 func (g *Gelf) Send(b []byte) {
-	var addr = g.Config.GraylogHostname + ":" + strconv.Itoa(g.Config.GraylogPort)
-	udpAddr, err := net.ResolveUDPAddr("udp", addr)
+	udpAddr, err := net.ResolveUDPAddr("udp", g.Config.GrayLogEndpoint)
 	if err != nil {
 		log.Printf("Uh oh! %s", err)
 		return
