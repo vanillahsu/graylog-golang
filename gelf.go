@@ -5,11 +5,9 @@ import (
 	"compress/zlib"
 	"crypto/rand"
 	"encoding/binary"
-	"errors"
 	"log"
 	"math"
 	"net"
-	"strconv"
 )
 
 const (
@@ -125,7 +123,7 @@ func (g *Gelf) Compress(b []byte) bytes.Buffer {
 }
 
 func (g *Gelf) Send(b []byte) {
-	udpAddr, err := net.ResolveUDPAddr("udp", g.Config.GrayLogEndpoint)
+	udpAddr, err := net.ResolveUDPAddr("udp", g.Config.GraylogEndpoint)
 	if err != nil {
 		log.Printf("Uh oh! %s", err)
 		return
