@@ -49,8 +49,8 @@ func New(config Config) *Gelf {
 	return g
 }
 
-func (g *Gelf) Log(message string) {
-	compressed := g.Compress([]byte(message))
+func (g *Gelf) Write(message []byte) (n int, err error) {
+	compressed := g.Compress(message)
 
 	chunksize := g.Config.MaxChunkSizeWan
 	length := compressed.Len()
@@ -64,12 +64,14 @@ func (g *Gelf) Log(message string) {
 
 		for i, index := 0, 0; i < length; i, index = i+chunksize, index+1 {
 			packet := g.CreateChunkedMessage(index, chunkCountInt, id, &compressed)
-			g.Send(packet.Bytes())
+			n, err = g.Send(packet.Bytes())
 		}
 
 	} else {
-		g.Send(compressed.Bytes())
+		n, err = g.Send(compressed.Bytes())
 	}
+
+	return
 }
 
 func (g *Gelf) CreateChunkedMessage(index int, chunkCountInt int, id []byte, compressed *bytes.Buffer) bytes.Buffer {
@@ -122,7 +124,7 @@ func (g *Gelf) Compress(b []byte) bytes.Buffer {
 	return buf
 }
 
-func (g *Gelf) Send(b []byte) {
+func (g *Gelf) Send(b []byte) (n int, err error) {
 	udpAddr, err := net.ResolveUDPAddr("udp", g.Config.GraylogEndpoint)
 	if err != nil {
 		log.Printf("Uh oh! %s", err)
@@ -133,5 +135,7 @@ func (g *Gelf) Send(b []byte) {
 		log.Printf("Uh oh! %s", err)
 		return
 	}
-	conn.Write(b)
+	n, err = conn.Write(b)
+
+	return
 }

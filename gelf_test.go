@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"net"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,30 +13,13 @@ import (
 	"github.com/lintianzhi/graylogd"
 )
 
-var validJson = `{
-			"version": "1.0",
-			"host": "localhost",
-			"timestamp": "123312312",
-			"facility": "Google Go",
-			"short_message": "Hello From Golang! :)"
-	}`
-
-var inValidJson = `{
-			"_id": "23",
-			"version": "1.0",
-			"host": "localhost",
-			"timestamp": "123312312",
-			"facility": "Google Go",
-			"short_message": "Hello From Golang! :)"
-	}`
-
 func Benchmark_LogWithShortMessage(b *testing.B) {
 	b.StopTimer()
 	g := New(Config{})
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		g.Log("Hello World")
+		g.Write([]byte("Hello World"))
 	}
 }
 
@@ -50,15 +32,14 @@ func Benchmark_LogWithChunks(b *testing.B) {
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		g.Log("sdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddf")
+		g.Write([]byte("sdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddfsdfsdsdfdsfdsddddf"))
 	}
 }
 
 func Test_New_itShouldUseDefaultConfigValuesIfNoOtherProvided(t *testing.T) {
 	g := New(Config{})
 
-	assert.Equal(t, g.Config.GraylogPort, defaultGraylogPort)
-	assert.Equal(t, g.Config.GraylogHostname, defaultGraylogHostname)
+	assert.Equal(t, g.Config.GraylogEndpoint, defaultGraylogEndpoint)
 	assert.Equal(t, g.Config.Connection, defaultConnection)
 	assert.Equal(t, g.Config.MaxChunkSizeWan, defaultMaxChunkSizeWan)
 	assert.Equal(t, g.Config.MaxChunkSizeLan, defaultMaxChunkSizeLan)
@@ -66,49 +47,21 @@ func Test_New_itShouldUseDefaultConfigValuesIfNoOtherProvided(t *testing.T) {
 
 func Test_New_itShouldUseConfigValuesFromArguments(t *testing.T) {
 	g := New(Config{
-		GraylogPort:     80,
-		GraylogHostname: "foobarhost",
+		GraylogEndpoint: "foobarhost:80",
 		Connection:      "wlan",
 		MaxChunkSizeWan: 42,
 		MaxChunkSizeLan: 1337,
 	})
 
-	assert.Equal(t, g.Config.GraylogPort, 80)
-	assert.Equal(t, g.Config.GraylogHostname, "foobarhost")
+	assert.Equal(t, g.Config.GraylogEndpoint, "foobarhost:80")
 	assert.Equal(t, g.Config.Connection, "wlan")
 	assert.Equal(t, g.Config.MaxChunkSizeWan, 42)
 	assert.Equal(t, g.Config.MaxChunkSizeLan, 1337)
 }
 
-func Test_ParseJson_itShouldReturnTypeMapStringInterface(t *testing.T) {
-	g := New(Config{})
-	res := g.ParseJson(validJson)
-
-	assert.Equal(t, reflect.TypeOf(res), reflect.TypeOf(make(map[string]interface{})))
-}
-
-func Test_ParseJson_itShouldParseTheStringToJson(t *testing.T) {
-	g := New(Config{})
-	res := g.ParseJson(validJson)
-
-	assert.Equal(t, res["version"], "1.0")
-	assert.Equal(t, res["host"], "localhost")
-	assert.Equal(t, res["timestamp"], "123312312")
-	assert.Equal(t, res["facility"], "Google Go")
-	assert.Equal(t, res["short_message"], "Hello From Golang! :)")
-}
-
-func Test_TestForForbiddenValues_itShouldReturnAnErrorIfForbiddenValuesAppear(t *testing.T) {
-	g := New(Config{})
-	res := g.ParseJson(inValidJson)
-	err := g.TestForForbiddenValues(res)
-
-	assert.NotEqual(t, nil, err)
-}
-
 func Test_TestSend_itShouldSendUdpPacketsToAServer(t *testing.T) {
 	g := New(Config{
-		GraylogPort: 55555,
+		GraylogEndpoint: "127.0.0.1:55555",
 	})
 
 	done := make(chan int)
@@ -182,8 +135,7 @@ func Test_ChunkSize(t *testing.T) {
 	defer logd.Close()
 
 	client := New(Config{
-		GraylogPort:     2211,
-		GraylogHostname: "127.0.0.1",
+		GraylogEndpoint: "127.0.0.1:2211",
 		MaxChunkSizeWan: 1,
 		MaxChunkSizeLan: 1,
 	})
@@ -196,7 +148,7 @@ func Test_ChunkSize(t *testing.T) {
 
 		realB = []byte(msg)
 
-		client.Log(msg)
+		client.Write([]byte(msg))
 		select {
 		case <-waitChan:
 		case <-time.After(time.Second):
