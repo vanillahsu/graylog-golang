@@ -50,6 +50,7 @@ func New(config Config) *Gelf {
 }
 
 func (g *Gelf) Write(message []byte) (n int, err error) {
+	var total int
 	compressed := g.Compress(message)
 
 	chunksize := g.Config.MaxChunkSizeWan
@@ -65,8 +66,13 @@ func (g *Gelf) Write(message []byte) (n int, err error) {
 		for i, index := 0, 0; i < length; i, index = i+chunksize, index+1 {
 			packet := g.CreateChunkedMessage(index, chunkCountInt, id, &compressed)
 			n, err = g.Send(packet.Bytes())
+			if err != nil {
+				return 0, err
+			} else {
+				total += n
+			}
 		}
-
+		n = total
 	} else {
 		n, err = g.Send(compressed.Bytes())
 	}
